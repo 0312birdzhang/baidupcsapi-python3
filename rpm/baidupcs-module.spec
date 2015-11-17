@@ -12,11 +12,10 @@ BuildArch: armv7hl
 Summary:    baidupcsapi python3 module
 Version:    0.3.6
 Release:    1
-Group:      Qt/Qt
-License:    TODO
+Group:      Programming Language/Python
+License:    MIT
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   python3-base
-Requires:   pyotherside-qml-plugin-python3
 Requires:   requests
 Requires:   requests_toolbelt
 %description

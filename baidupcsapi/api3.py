@@ -16,7 +16,7 @@ from urllib.parse import urlencode, quote
 from zlib import crc32
 from requests_toolbelt import MultipartEncoder
 import requests
-#requests.packages.urllib3.disable_warnings()
+import requests.packages.urllib3
 import rsa
 import urllib.request, urllib.parse, urllib.error
 
@@ -156,7 +156,7 @@ class BaseClass(object):
         """
         url = 'http://pcs.baidu.com/rest/2.0/pcs/file?app_id=250528&method=locateupload'
         ret = requests.get(url).content
-        foo = json.loads(ret)
+        foo = json.loads(ret.decode("utf-8"))
         return foo['host']
 
     def set_pcs_server(self, server):
@@ -184,8 +184,10 @@ class BaseClass(object):
 
     def _save_cookies(self):
         cookies_file = '.{0}.cookies'.format(self.username)
-        with open(cookies_file, 'w') as f:
-            pickle.dump(
+        print(self.session.cookies)
+#         with open(cookies_file, 'w') as f:
+        f = open(cookies_file,"wb")
+        pickle.dump(
                 requests.utils.dict_from_cookiejar(self.session.cookies), f)
 
     def _load_cookies(self):
@@ -194,13 +196,13 @@ class BaseClass(object):
         if os.path.exists(cookies_file):
             logging.debug('%s cookies file has already existed.' %
                           self.username)
-            with open(cookies_file) as cookies_file:
-                cookies = requests.utils.cookiejar_from_dict(
+            cookies_file = open(cookies_file,"rb")
+            cookies = requests.utils.cookiejar_from_dict(
                     pickle.load(cookies_file))
-                logging.debug(str(cookies))
-                self.session.cookies = cookies
-                self.user['BDUSS'] = self.session.cookies['BDUSS']
-                return True
+            logging.debug(str(cookies))
+            self.session.cookies = cookies
+            self.user['BDUSS'] = self.session.cookies['BDUSS']
+            return True
         else:
             return False
 
@@ -215,7 +217,7 @@ class BaseClass(object):
     def _get_captcha(self, code_string):
         # Captcha
         if code_string:
-            verify_code = self.captcha_func("https://passport.baidu.com/cgi-bin/genimage?" + code_string)
+            verify_code = self.captcha_func(b"https://passport.baidu.com/cgi-bin/genimage?" + code_string)
         else:
             verify_code = ""
 
@@ -223,7 +225,7 @@ class BaseClass(object):
 
     def show_captcha(self, url_verify_code):
         print(url_verify_code)
-        verify_code = eval(input('open url aboved with your web browser, then input verify code > '))
+        verify_code = input('open url aboved with your web browser, then input verify code > ')
 
         return verify_code
 
@@ -231,7 +233,7 @@ class BaseClass(object):
         url = 'https://passport.baidu.com/v2/getpublickey?token=' + \
             self.user['token']
         content = self.session.get(url).content
-        jdata = json.loads(content.replace('\'','"'))
+        jdata = json.loads(content.replace(b'\'',b'"').decode("utf-8"))
         return (jdata['pubkey'], jdata['key'])
 
     def _login(self):
@@ -240,8 +242,8 @@ class BaseClass(object):
         captcha = ''
         code_string = ''
         pubkey, rsakey = self._get_publickey()
-        key = rsa.PublicKey.load_pkcs1_openssl_pem(pubkey)
-        password_rsaed = base64.b64encode(rsa.encrypt(self.password, key))
+        key = rsa.PublicKey.load_pkcs1_openssl_pem(pubkey.encode("utf-8"))
+        password_rsaed = base64.b64encode(rsa.encrypt(self.password.encode("utf-8"), key))
         while True:
             login_data = {'staticpage': 'http://www.baidu.com/cache/user/html/v3Jump.html',
                           'charset': 'UTF-8',
@@ -249,7 +251,7 @@ class BaseClass(object):
                           'tpl': 'pp',
                           'subpro': '',
                           'apiver': 'v3',
-                          'tt': str(int(time.time())),
+                          'tt': str(int(time.time())).encode("utf-8"),
                           'codestring': code_string,
                           'isPhone': 'false',
                           'safeflg': '0',
@@ -262,7 +264,7 @@ class BaseClass(object):
                           'password': password_rsaed,
                           'verifycode': captcha,
                           'mem_pass': 'on',
-                          'rsakey': str(rsakey),
+                          'rsakey': str(rsakey).encode("utf-8"),
                           'crypttype': 12,
                           'ppui_logintime': '50918',
                           'callback': 'parent.bd__pcbs__oa36qm'}
@@ -270,9 +272,9 @@ class BaseClass(object):
                 'https://passport.baidu.com/v2/api/?login', data=login_data)
 
             # 是否需要验证码
-            if 'err_no=257' in result.content or 'err_no=6' in result.content:
-                code_string = re.findall('codeString=(.*?)&', result.content)[0]
-                logging.debug('need captcha, codeString=' + code_string)
+            if b'err_no=257' in result.content or b'err_no=6' in result.content:
+                code_string = re.findall(b'codeString=(.*?)&', result.content)[0]
+                logging.debug(b'need captcha, codeString=' + code_string)
                 captcha = self._get_captcha(code_string)
                 continue
 
@@ -293,9 +295,9 @@ class BaseClass(object):
         self._save_cookies()
 
     def _check_account_exception(self, content):
-        err_id = re.findall('err_no=([\d]+)', content)[0]
+        err_id = re.findall(b'err_no=([\d]+)', content)[0]
 
-        if err_id == '0':
+        if err_id == b'0':
             return
         error_message = {
             '-1':'系统错误, 请稍后重试',
@@ -316,7 +318,7 @@ class BaseClass(object):
         try:
             msg = error_message[err_id]
         except:
-            msg = 'unknown err_id=' + err_id
+            msg = b'unknown err_id=' + err_id
         raise LoginFailed(msg)
 
     def _params_utf8(self, params):
